@@ -13,21 +13,22 @@ class CarfaxPurchasesService(BaseService[CarfaxPurchase, CarfaxPurchaseCreate, C
         await super().__aenter__()
         return self
 
-    async def user_has_access(self, user_id: str, source: str, vin: str) -> bool:
+    async def get_vin_for_user(self, external_user_id: str, source: str, vin: str):
         query = select(CarfaxPurchase).where(
-            CarfaxPurchase.user_external_id == user_id,
-            CarfaxPurchase.source == source,
             CarfaxPurchase.vin == vin.upper(),
+            CarfaxPurchase.user_external_id == external_user_id,
+            CarfaxPurchase.source == source,
         )
         result = await self.session.execute(query)
-        return result.scalar_one_or_none() is not None
+        return result.scalars().first()
+
 
     async def get_by_vin(self, vin: str) -> CarfaxPurchase:
         query = select(CarfaxPurchase).where(
             CarfaxPurchase.vin == vin.upper(),
         )
         result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def get_all_for_user(self, external_user_id: str, source: str) -> list[CarfaxPurchaseRead]:
         query = select(CarfaxPurchase).where(

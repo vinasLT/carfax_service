@@ -36,9 +36,13 @@ async def buy_carfax_request(
     #     raise BadRequestException(message='No carfaxes left, admin need to top up his account',
     #                               short_message='top_up_needed')
     async with CarfaxPurchasesService() as service:
-        carfax = await service.create(CarfaxPurchaseCreate(user_external_id=data.user_external_id,
-                                                  source=data.source,
-                                                  vin=data.vin.upper()))
+        carfax = await service.get_vin_for_user(external_user_id=data.user_external_id,
+                                                source=data.source, vin=data.vin)
+        if not carfax:
+            carfax = await service.create(CarfaxPurchaseCreate(user_external_id=data.user_external_id,
+                                                      source=data.source,
+                                                      vin=data.vin.upper()))
+
     return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
 @app.post('/internal/carfax/webhook/{carfax_id}/paid', response_model=CarfaxPurchaseRead)
@@ -55,16 +59,16 @@ async def carfax_paid(carfax_id: int) -> CarfaxPurchaseRead:
     return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
 @app.get("/carfax", response_model=list[CarfaxPurchaseRead])
-async def get_carfaxes(external_user_id: str = Query(...),
+async def get_carfaxes(user_external_id: str = Query(...),
                      source: str = Query(...), ):
     async with CarfaxPurchasesService() as service:
-        return await service.get_all_for_user(external_user_id, source)
+        return await service.get_all_for_user(user_external_id, source)
 
 @app.get("/carfax/{vin}/", response_model=CarfaxPurchaseRead)
-async def get_carfax_by_vin(vin:str, external_user_id: str = Query(...), source: str = Query(...))-> CarfaxPurchaseRead:
+async def get_carfax_by_vin(vin:str, user_external_id: str = Query(...), source: str = Query(...))-> CarfaxPurchaseRead:
     async with CarfaxPurchasesService() as service:
         carfax = await service.get_by_vin(vin.upper())
-        if carfax.external_user_id == external_user_id and carfax.source == source:
+        if carfax.user_external_id == user_external_id and carfax.source == source:
             if carfax.is_paid and not carfax.link:
                 carfax_api = await api.get_carfax(carfax.vin)
                 carfax = await service.update(carfax.id, CarfaxPurchaseUpdate(link=str(carfax_api.file)))
