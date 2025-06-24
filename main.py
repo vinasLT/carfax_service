@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, Request, Depends, Query
+from fastapi import FastAPI, Request, Depends, Query, Body
 from starlette.responses import JSONResponse
 
 from api.carfax_api import CarfaxAPIClient
@@ -29,7 +29,7 @@ async def bad_request_exception_handler(request: Request, exc: BadRequestExcepti
 
 @app.post("/carfax/buy-carfax", response_model=CarfaxPurchaseRead)
 async def buy_carfax_request(
-    data: CarfaxPurchaseIn = Depends(),
+    data: CarfaxPurchaseIn = Body(...),
 )-> CarfaxPurchaseRead:
     response = await api.check_balance()
     if response.balance <= 1:
