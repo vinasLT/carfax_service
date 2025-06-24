@@ -31,10 +31,10 @@ async def bad_request_exception_handler(request: Request, exc: BadRequestExcepti
 async def buy_carfax_request(
     data: CarfaxPurchaseIn = Body(...),
 )-> CarfaxPurchaseRead:
-    response = await api.check_balance()
-    if response.balance <= 1:
-        raise BadRequestException(message='No carfaxes left, admin need to top up his account',
-                                  short_message='top_up_needed')
+    # response = await api.check_balance()
+    # if response.balance <= 1:
+    #     raise BadRequestException(message='No carfaxes left, admin need to top up his account',
+    #                               short_message='top_up_needed')
     async with CarfaxPurchasesService() as service:
         already_in_db = await service.get_by_vin(vin=data.vin)
         link = already_in_db.link if already_in_db else None
