@@ -36,21 +36,22 @@ async def buy_carfax_request(
     #     raise BadRequestException(message='No carfaxes left, admin need to top up his account',
     #                               short_message='top_up_needed')
     async with CarfaxPurchasesService() as service:
-        already_in_db = await service.get_by_vin(vin=data.vin)
-        link = already_in_db.link if already_in_db else None
         carfax = await service.create(CarfaxPurchaseCreate(user_external_id=data.user_external_id,
                                                   source=data.source,
-                                                  vin=data.vin.upper(),
-                                                  link=str(link)))
+                                                  vin=data.vin.upper()))
     return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
 @app.post('/internal/carfax/webhook/{carfax_id}/paid', response_model=CarfaxPurchaseRead)
 async def carfax_paid(carfax_id: int) -> CarfaxPurchaseRead:
     async with CarfaxPurchasesService() as service:
         carfax = await service.get(carfax_id)
-        if carfax.link is None:
+        already_in_db = await service.get_by_vin(vin=carfax.vin)
+
+        link = already_in_db.link if already_in_db else None
+        if link is None:
             carfax_api = await api.get_carfax(carfax.vin)
-            await service.update(carfax.id, CarfaxPurchaseUpdate(link=str(carfax_api.file)))
+            link = str(carfax_api.link)
+        await service.update(carfax.id, CarfaxPurchaseUpdate(link=link))
     return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
 @app.get("/carfax", response_model=list[CarfaxPurchaseRead])
