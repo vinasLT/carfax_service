@@ -25,6 +25,8 @@ RUN poetry install --no-root
 # Копирование исходного кода
 COPY . /app
 
+RUN chmod +x /app/entrypoint.sh
+
 # Открытие порта
 EXPOSE 8000
 
