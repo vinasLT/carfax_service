@@ -6,7 +6,7 @@ from pydantic import BaseModel, HttpUrl
 class CarfaxPurchaseBase(BaseModel):
     user_external_id: str
     source: str
-    link: Optional[HttpUrl] = None
+    link: Optional[str] = None
     is_paid: Optional[bool] = False
     vin: str
     created_at: Optional[datetime] = None

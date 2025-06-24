@@ -40,8 +40,8 @@ async def buy_carfax_request(
         link = already_in_db.link if already_in_db else None
         carfax = await service.create(CarfaxPurchaseCreate(user_external_id=data.user_external_id,
                                                   source=data.source,
-                                                  vin=data.vin,
-                                                  link=link))
+                                                  vin=data.vin.upper(),
+                                                  link=str(link)))
     return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
 @app.post('/internal/carfax/webhook/{carfax_id}/paid', response_model=CarfaxPurchaseRead)
@@ -62,7 +62,7 @@ async def get_carfaxes(external_user_id: str = Query(...),
 @app.get("/carfax/{vin}/", response_model=CarfaxPurchaseRead)
 async def get_carfax_by_vin(vin:str, external_user_id: str = Query(...), source: str = Query(...))-> CarfaxPurchaseRead:
     async with CarfaxPurchasesService() as service:
-        carfax = await service.get_by_vin(vin)
+        carfax = await service.get_by_vin(vin.upper())
         if carfax.external_user_id == external_user_id and carfax.source == source:
             if carfax.is_paid and not carfax.link:
                 carfax_api = await api.get_carfax(carfax.vin)

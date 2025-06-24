@@ -17,14 +17,14 @@ class CarfaxPurchasesService(BaseService[CarfaxPurchase, CarfaxPurchaseCreate, C
         query = select(CarfaxPurchase).where(
             CarfaxPurchase.user_external_id == user_id,
             CarfaxPurchase.source == source,
-            CarfaxPurchase.vin == vin
+            CarfaxPurchase.vin == vin.upper(),
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none() is not None
 
     async def get_by_vin(self, vin: str) -> CarfaxPurchase:
         query = select(CarfaxPurchase).where(
-            CarfaxPurchase.vin == vin
+            CarfaxPurchase.vin == vin.upper(),
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
