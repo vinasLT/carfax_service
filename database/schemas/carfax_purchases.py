@@ -8,7 +8,7 @@ class CarfaxPurchaseBase(BaseModel):
     source: str
     link: Optional[str] = None
     is_paid: Optional[bool] = False
-    vin: str
+    vin: Optional[str] = None
     created_at: Optional[datetime] = None
 
 

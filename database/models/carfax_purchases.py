@@ -13,7 +13,7 @@ class CarfaxPurchase(Base):
     source = Column(String, nullable=False, index=True)
     link = Column(String, nullable=True)
     is_paid = Column(Boolean, nullable=False, default=False)
-    vin = Column(String, nullable=False, index=True)
+    vin = Column(String, nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (
