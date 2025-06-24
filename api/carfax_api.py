@@ -19,20 +19,42 @@ class CarfaxAPIClient:
     def __init__(self):
         self.session = AsyncClient()
 
-    async def _make_request(self,method: Literal['GET', 'POST'], url:str, data: dict = None)-> dict:
+    async def _make_request(
+        self,
+        method: Literal['GET', 'POST'],
+        url: str,
+        data: dict = None,
+        retries: int = 3,
+        delay: float = 1.0
+    ) -> dict:
         url = f'{self._BASE_URL}{url}'
-        try:
-            response = await self.session.request(method, url=url, json=data, headers=self._HEADERS)
-            print(response.status_code)
-            print(response.json())
-            response.raise_for_status()
-            return response.json()
-        except HTTPStatusError:
-            raise BadRequestException(message='Error while making request', short_message='error_make_request')
-        except Exception:
-            raise BadRequestException(message='Error while request, not related with response status',
-                                      short_message='error_make_request_not_related_status')
 
+        for attempt in range(1, retries + 1):
+            try:
+                response = await self.session.request(
+                    method, url=url, json=data, headers=self._HEADERS
+                )
+                print(response.status_code)
+                print(await response.aread())
+                response.raise_for_status()
+                return response.json()
+            except HTTPStatusError:
+                raise BadRequestException(
+                    message='Error while making request',
+                    short_message='error_make_request'
+                )
+            except Exception as e:
+                print(f'Attempt {attempt} failed with error: {e}')
+                if attempt == retries:
+                    raise BadRequestException(
+                        message='Error while request, not related with response status',
+                        short_message='error_make_request_not_related_status'
+                    )
+                await asyncio.sleep(delay)
+        raise BadRequestException(
+            message='Error while request, not related with response status',
+            short_message='error_make_request_not_related_status'
+        )
 
     async def get_carfax(self, vin: str, re_buy: bool = False)->CarfaxOut:
         data = {
