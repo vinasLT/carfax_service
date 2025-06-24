@@ -1,9 +1,9 @@
 # Базовый образ
 FROM python:3.13-slim
 
-# Установка зависимостей системы
+# Установка зависимостей системы + postgresql-client (для pg_isready)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl && \
+    build-essential curl postgresql-client && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Установка Poetry через pip
@@ -25,10 +25,11 @@ RUN poetry install --no-root
 # Копирование исходного кода
 COPY . /app
 
+# Даем права на скрипт
 RUN chmod +x /app/entrypoint.sh
 
 # Открытие порта
 EXPOSE 8000
 
-# Запуск FastAPI через Uvicorn (путь может отличаться)
+# Запуск FastAPI
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
