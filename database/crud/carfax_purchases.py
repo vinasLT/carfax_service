@@ -13,7 +13,7 @@ class CarfaxPurchasesService(BaseService[CarfaxPurchase, CarfaxPurchaseCreate, C
         await super().__aenter__()
         return self
 
-    async def get_vin_for_user(self, external_user_id: str, source: str, vin: str):
+    async def get_vin_for_user(self, external_user_id: str, source: str, vin: str)-> CarfaxPurchase:
         query = select(CarfaxPurchase).where(
             CarfaxPurchase.vin == vin.upper(),
             CarfaxPurchase.user_external_id == external_user_id,

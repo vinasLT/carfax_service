@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
+from http.client import HTTPResponse
 
 import uvicorn
-from fastapi import FastAPI, Request, Depends, Query, Body
+from fastapi import FastAPI, Request, Depends, Query, Body, HTTPException
 from starlette.responses import JSONResponse
 
 from api.carfax_api import CarfaxAPIClient
@@ -38,6 +39,7 @@ async def buy_carfax_request(
     async with CarfaxPurchasesService() as service:
         carfax = await service.get_vin_for_user(external_user_id=data.user_external_id,
                                                 source=data.source, vin=data.vin)
+        print(carfax)
         if not carfax:
             carfax = await service.create(CarfaxPurchaseCreate(user_external_id=data.user_external_id,
                                                       source=data.source,
@@ -54,8 +56,8 @@ async def carfax_paid(carfax_id: int) -> CarfaxPurchaseRead:
         link = already_in_db.link if already_in_db else None
         if link is None:
             carfax_api = await api.get_carfax(carfax.vin)
-            link = str(carfax_api.link)
-        await service.update(carfax.id, CarfaxPurchaseUpdate(link=link))
+            link = str(carfax_api.file)
+        await service.update(carfax.id, CarfaxPurchaseUpdate(link=link, is_paid=True))
     return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
 @app.get("/carfax", response_model=list[CarfaxPurchaseRead])
@@ -67,11 +69,13 @@ async def get_carfaxes(user_external_id: str = Query(...),
 @app.get("/carfax/{vin}/", response_model=CarfaxPurchaseRead)
 async def get_carfax_by_vin(vin:str, user_external_id: str = Query(...), source: str = Query(...))-> CarfaxPurchaseRead:
     async with CarfaxPurchasesService() as service:
-        carfax = await service.get_by_vin(vin.upper())
-        if carfax.user_external_id == user_external_id and carfax.source == source:
+        carfax = await service.get_vin_for_user(external_user_id=user_external_id, source=source, vin=vin)
+        if carfax:
             if carfax.is_paid and not carfax.link:
                 carfax_api = await api.get_carfax(carfax.vin)
                 carfax = await service.update(carfax.id, CarfaxPurchaseUpdate(link=str(carfax_api.file)))
+        else:
+            raise HTTPException(status_code=404, detail="Carfax not found")
     return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
 
