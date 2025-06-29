@@ -35,7 +35,7 @@ class CarfaxAPIClient:
                     method, url=url, json=data, headers=self._HEADERS
                 )
                 print(response.status_code)
-                print(await response.aread())
+                print(response.text)
                 response.raise_for_status()
                 return response.json()
             except HTTPStatusError:
@@ -75,6 +75,6 @@ if __name__ == "__main__":
     app = CarfaxAPIClient()
     async def main():
         response = await app.check_balance()
-        # response = await app.get_carfax(vin='WAUENCF50JA096961')
+        response = await app.get_carfax(vin='WBA8E3G54GNU00225')
         print(response)
     asyncio.run(main())
