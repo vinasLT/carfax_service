@@ -26,6 +26,8 @@ class CarfaxPurchasesService(BaseService[CarfaxPurchase, CarfaxPurchaseCreate, C
     async def get_by_vin(self, vin: str) -> CarfaxPurchase:
         query = select(CarfaxPurchase).where(
             CarfaxPurchase.vin == vin.upper(),
+            CarfaxPurchase.link.is_not(None),
+            CarfaxPurchase.is_paid.is_(True),
         )
         result = await self.session.execute(query)
         return result.scalars().first()

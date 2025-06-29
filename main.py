@@ -69,15 +69,24 @@ async def get_carfaxes(user_external_id: str = Query(...),
 @app.get("/carfax/{vin}/", response_model=CarfaxPurchaseRead)
 async def get_carfax_by_vin(vin:str, user_external_id: str = Query(...), source: str = Query(...))-> CarfaxPurchaseRead:
     async with CarfaxPurchasesService() as service:
-        carfax = await service.get_vin_for_user(external_user_id=user_external_id, source=source, vin=vin)
-        if carfax:
-            if carfax.is_paid and not carfax.link:
-                carfax_api = await api.get_carfax(carfax.vin)
-                carfax = await service.update(carfax.id, CarfaxPurchaseUpdate(link=str(carfax_api.file)))
-        else:
+        carfax = await service.get_vin_for_user(
+            external_user_id=user_external_id, source=source, vin=vin
+        )
+        if not carfax:
             raise HTTPException(status_code=404, detail="Carfax not found")
-    return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
+        if carfax.is_paid and not carfax.link:
+            already_in_db = await service.get_by_vin(vin=carfax.vin)
+            if already_in_db and already_in_db.link:
+                carfax = await service.update(
+                    carfax.id, CarfaxPurchaseUpdate(link=already_in_db.link)
+                )
+            else:
+                carfax_api = await api.get_carfax(carfax.vin)
+                carfax = await service.update(
+                    carfax.id, CarfaxPurchaseUpdate(link=str(carfax_api.file))
+                )
+    return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
 if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=8001)
