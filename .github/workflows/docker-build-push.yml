@@ -30,3 +30,19 @@ jobs:
 
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/vinaslt_carfax_service:latest
+
+      - name: Deploy on server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          debug: true
+          script: |
+            set -x
+            echo "🔁 Pulling latest Docker image..."
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/vinaslt_carfax_service:latest
+            
+            echo "📦 Composing up..."
+            cd /srv/vinaslt/deploy_conf
+            docker compose up -d --build

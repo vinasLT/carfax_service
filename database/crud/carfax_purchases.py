@@ -1,4 +1,5 @@
 from sqlalchemy import select, desc
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.crud.base import BaseService
 from database.models.carfax_purchases import CarfaxPurchase
@@ -6,12 +7,8 @@ from database.schemas.carfax_purchases import CarfaxPurchaseCreate, CarfaxPurcha
 
 
 class CarfaxPurchasesService(BaseService[CarfaxPurchase, CarfaxPurchaseCreate, CarfaxPurchaseUpdate]):
-    def __init__(self):
-        super().__init__(CarfaxPurchase)
-
-    async def __aenter__(self):
-        await super().__aenter__()
-        return self
+    def __init__(self, session: AsyncSession):
+        super().__init__(CarfaxPurchase, session)
 
     async def get_vin_for_user(self, external_user_id: str, source: str, vin: str)-> CarfaxPurchase:
         query = select(CarfaxPurchase).where(

@@ -1,4 +1,6 @@
 from typing import TypeVar, Generic, Type, Optional, Sequence
+
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from pydantic import BaseModel
 
@@ -10,17 +12,10 @@ UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
 
 class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
-    def __init__(self, model: Type[ModelType]):
+    def __init__(self, model: Type[ModelType], session: AsyncSession):
         self.model = model
-        self.session = None
+        self.session = session
 
-    async def __aenter__(self):
-        self.session = AsyncSessionLocal()
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        if self.session:
-            await self.session.close()
 
     async def get(self, obj_id: int) -> Optional[ModelType]:
         return await self.session.get(self.model, obj_id)
