@@ -17,7 +17,7 @@ class CarfaxAPIClient:
     _BASE_URL = 'https://api.covin.io/api/'
 
     def __init__(self):
-        self.session = AsyncClient()
+        self.session = AsyncClient(timeout=10)
 
     async def _make_request(
         self,
