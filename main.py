@@ -1,20 +1,10 @@
-from contextlib import asynccontextmanager
-
 import uvicorn
 from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
-from api.carfax_api import CarfaxAPIClient
 from exeptions import BadRequestException
 from routers import carfax_router
 
-api: CarfaxAPIClient | None = None
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global api
-    api = CarfaxAPIClient()
-    yield
 
 def create_app() -> FastAPI:
     app = FastAPI()

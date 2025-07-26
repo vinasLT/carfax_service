@@ -35,17 +35,20 @@ async def buy_carfax_request(
     return CarfaxPurchaseRead.model_validate(carfax).model_dump()
 
 @carfax_router.post('/internal/carfax/webhook/{carfax_id}/paid', response_model=CarfaxPurchaseRead)
-async def carfax_paid(carfax_id: int, db: AsyncSession = Depends(get_db), api:CarfaxAPIClient = Depends()) -> CarfaxPurchaseRead:
+async def carfax_paid(carfax_id: int, db: AsyncSession = Depends(get_db), api: CarfaxAPIClient = Depends()) -> CarfaxPurchaseRead:
     service = CarfaxPurchasesService(db)
     carfax = await service.get(carfax_id)
-    already_in_db = await service.get_by_vin(vin=carfax.vin)
-
-    link = already_in_db.link if already_in_db else None
-    if link is None:
-        carfax_api = await api.get_carfax(carfax.vin)
-        link = str(carfax_api.file)
+    link = carfax.link
+    if not link:
+        existing = await service.get_by_vin(vin=carfax.vin)
+        if existing:
+            link = existing.link
+        else:
+            carfax_api = await api.get_carfax(carfax.vin)
+            link = str(carfax_api.file)
     await service.update(carfax.id, CarfaxPurchaseUpdate(link=link, is_paid=True))
-    return CarfaxPurchaseRead.model_validate(carfax).model_dump()
+    updated = await service.get(carfax.id)
+    return CarfaxPurchaseRead.model_validate(updated)
 
 @carfax_router.get("/carfax", response_model=list[CarfaxPurchaseRead])
 async def get_carfaxes(user_external_id: str = Query(...),
