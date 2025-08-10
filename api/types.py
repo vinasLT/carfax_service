@@ -6,4 +6,4 @@ class CarfaxOut(BaseModel):
     file: HttpUrl
 
 class CheckBalanceOut(BaseModel):
-    balance: int
+    balance: float
