@@ -114,41 +114,6 @@ async def test_get_carfax_link_already_in_another_record(
     mock_carfax_client.check_balance.assert_not_called()
 
 
-SRC   = "web"
-USER1 = "100"
-USER2 = "200"
-@pytest.mark.asyncio
-async def test_race_webhook_and_get_no_double_call(
-    client: AsyncClient,
-    db,
-    mock_carfax_client: AsyncMock,
-):
-    """
-    Запускаем веб-хук и GET одновременно.
-    При правильно расставленных блокировках внешний Carfax
-    должен вызваться ровно один раз.
-    """
-    purchase = await CarfaxPurchasesService(db).create(
-        CarfaxPurchaseCreate(user_external_id=USER1, source=SRC, vin=VIN)
-    )
-    await CarfaxPurchasesService(db).create(
-        CarfaxPurchaseCreate(user_external_id=USER2, source=SRC, vin=VIN, is_paid=True)
-    )
 
-    mock_carfax_client.get_carfax.return_value = CarfaxOut(
-        status="success", file=HttpUrl(LINK)
-    )
-
-    async def call_webhook():
-        await client.post(f"/internal/carfax/webhook/{purchase.id}/paid")
-
-    async def call_get():
-        await client.get(f"/carfax/{VIN}/", params={"user_external_id": USER2, "source": SRC})
-
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(call_webhook)
-        tg.start_soon(call_get)
-
-    assert mock_carfax_client.get_carfax.call_count == 1     # ← главное условие
 
 

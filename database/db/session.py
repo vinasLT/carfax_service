@@ -9,18 +9,18 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import create_engine
 
-from config import DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, DEBUG
+from config import settings
 
 
-if DEBUG:
+if settings.DEBUG:
     SYNC_DATABASE_URL = "sqlite:///./db.sqlite"
     ASYNC_DATABASE_URL = "sqlite+aiosqlite:///./db.sqlite"
 else:
     SYNC_DATABASE_URL = (
-        f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        f"postgresql://{settings.DB_USER}:{settings.DB_PASS}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
     )
     ASYNC_DATABASE_URL = (
-        f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PASS}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
     )
 
 
