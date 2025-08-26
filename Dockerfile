@@ -3,6 +3,7 @@ FROM python:3.13-slim
 
 # Установка зависимостей системы + postgresql-client (для pg_isready)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
     build-essential curl postgresql-client && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
