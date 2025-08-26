@@ -12,6 +12,7 @@ class CarfaxPurchaseBase(BaseModel):
     created_at: Optional[datetime] = None
 
 
+
 class CarfaxPurchaseCreate(CarfaxPurchaseBase):
     pass
 
@@ -28,3 +29,8 @@ class CarfaxPurchaseRead(CarfaxPurchaseBase):
 
     class Config:
         from_attributes = True
+
+class CarfaxPurchaseReadWithoutId(CarfaxPurchaseBase):
+    class Config:
+        from_attributes = True
+

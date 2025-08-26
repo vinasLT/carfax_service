@@ -44,6 +44,6 @@ sync_engine = create_engine(
 )
 SyncSessionLocal = sessionmaker(bind=sync_engine, autocommit=False, autoflush=False)
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db() -> AsyncSession:
     async with AsyncSessionLocal() as session:
-        yield session
+        return session

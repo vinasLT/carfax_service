@@ -4,9 +4,9 @@ from typing import Literal
 
 from httpx import AsyncClient, HTTPStatusError
 from dotenv import load_dotenv
+from rfc9457 import BadRequestProblem
 
 from api.types import CarfaxOut, CheckBalanceOut
-from exeptions import BadRequestException
 
 load_dotenv()
 
@@ -39,20 +39,20 @@ class CarfaxAPIClient:
                 response.raise_for_status()
                 return response.json()
             except HTTPStatusError:
-                raise BadRequestException(
-                    message='Error while making request',
+                raise BadRequestProblem(
+                    detail='Error while making request',
                     short_message='error_make_request'
                 )
             except Exception as e:
                 print(f'Attempt {attempt} failed with error: {e}')
                 if attempt == retries:
-                    raise BadRequestException(
-                        message='Error while request, not related with response status',
+                    raise BadRequestProblem(
+                        detail='Error while request, not related with response status',
                         short_message='error_make_request_not_related_status'
                     )
                 await asyncio.sleep(delay)
-        raise BadRequestException(
-            message='Error while request, not related with response status',
+        raise BadRequestProblem(
+            detail='Error while request, not related with response status',
             short_message='error_make_request_not_related_status'
         )
 
@@ -68,13 +68,19 @@ class CarfaxAPIClient:
         response = await self._make_request(method='GET', url=f'users/balance')
         return CheckBalanceOut.model_validate(response)
 
+    async def check_if_vin_exists(self, vin: str)->bool:
+        response = await self._make_request(method='GET', url=f'reports/check/exit?vin={vin}')
+        if response.get('notFound'):
+            return False
+        else:
+            return True
+
 
 
 
 if __name__ == "__main__":
     app = CarfaxAPIClient()
     async def main():
-        response = await app.check_balance()
-        response = await app.get_carfax(vin='WBA8E3G54GNU00225')
+        response = await app.check_if_vin_exists('WBA8E3G54GNU00225')
         print(response)
     asyncio.run(main())
