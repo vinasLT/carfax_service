@@ -1,7 +1,13 @@
+import os
+import sys
+
 import grpc
 
 from config import settings
 from core.logger import logger
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'gen/python'))
+
 from payment.v1 import stripe_pb2, stripe_pb2_grpc
 
 class StripeClient:
