@@ -10,6 +10,7 @@ from core.logger import logger
 from database import get_db
 from rabbit_service.custom_consumer import RabbitCarfaxConsumer, CarfaxRoutingKey
 from routers import carfax_router
+from routers.health import health
 
 
 def create_app() -> FastAPI:
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
 
 
     app.include_router(carfax_router, prefix="/private/v1")
+    app.include_router(health)
     return app
 
 app = create_app()

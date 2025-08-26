@@ -1,16 +1,14 @@
-from fastapi import APIRouter, Body, Depends, Query, HTTPException
+from fastapi import APIRouter, Body, Depends, Query
 from rfc9457 import BadRequestProblem, NotFoundProblem, ServerProblem
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.carfax_api import CarfaxAPIClient
-from config import settings
 from core.logger import logger
 from database import get_db
 from database.crud.carfax_purchases import CarfaxPurchasesService
-from database.schemas.carfax_purchases import CarfaxPurchaseRead, CarfaxPurchaseCreate, CarfaxPurchaseUpdate
+from database.schemas.carfax_purchases import CarfaxPurchaseRead
 from dependencies.carfax_client import get_carfax_client
 from dependencies.get_user import User, get_user
-from rpc_client_server.checkout_stripe_client import StripeClient, get_checkout_link
 from schemas.carfax_purchase import CarfaxPurchaseIn
 from schemas.carfax_with_checkout import CarfaxWithCheckoutOut
 
