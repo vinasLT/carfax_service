@@ -41,7 +41,13 @@ class RabbitCarfaxConsumer(RabbitBaseService):
 
         carfax_service = CarfaxPurchasesService(self.db)
         api_client = CarfaxAPIClient()
-        carfax = await carfax_service.get(purpose_external_id)
+        if not purpose_external_id.isdigit():
+            logger.error("Invalid purpose external id", extra={
+                "purpose_external_id": purpose_external_id
+            })
+            return
+
+        carfax = await carfax_service.get(int(purpose_external_id))
 
         link = carfax.link
         if not link:
