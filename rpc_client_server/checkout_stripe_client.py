@@ -37,7 +37,7 @@ class StripeClient:
             )
             return await self.stub.GetCheckoutLink(data)
         except grpc.aio.AioRpcError as e:
-            logger.error(f"Error while creating checkout link: {e}")
+            logger.error(f"Error while creating checkout link", extra={'error': str(e)})
             raise
 
 
