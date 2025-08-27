@@ -4,8 +4,8 @@ import grpc
 
 from api.carfax_api import CarfaxAPIClient
 from core.logger import logger
-from database import get_db
 from database.crud.carfax_purchases import CarfaxPurchasesService
+from database.db.session import get_db_context
 from database.schemas.carfax_purchases import CarfaxPurchaseReadWithoutId
 from rpc_client_server.gen.python.carfax.v1 import carfax_pb2_grpc, carfax_pb2
 
@@ -34,7 +34,7 @@ class CarfaxRpc(carfax_pb2_grpc.CarfaxServiceServicer):
                 context.set_details('VIN not found')
                 return carfax_pb2.BuyCarfaxResponse()
 
-            async with get_db() as db:
+            async with get_db_context() as db:
                 carfax_service = CarfaxPurchasesService(db)
 
                 carfax, link = await carfax_service.create_purchase_with_checkout(
@@ -66,7 +66,7 @@ class CarfaxRpc(carfax_pb2_grpc.CarfaxServiceServicer):
 
     async def GetAllCarfaxesForUser(self, request: carfax_pb2.GetAllCarfaxesForUserRequest, context):
         try:
-            async with get_db() as db:
+            async with get_db_context() as db:
                 carfax_service = CarfaxPurchasesService(db)
                 carfaxes = await carfax_service.get_all_for_user(request.user_external_id, request.source)
 
@@ -85,7 +85,7 @@ class CarfaxRpc(carfax_pb2_grpc.CarfaxServiceServicer):
 
     async def GetCarfaxByVin(self, request: carfax_pb2.GetCarfaxByVinRequest, context):
         try:
-            async with get_db() as db:
+            async with get_db_context() as db:
                 vin = request.vin.upper()
 
                 service = CarfaxPurchasesService(db)

@@ -8,6 +8,7 @@ from fastapi_problem.handler import new_exception_handler, add_exception_handler
 from config import settings
 from core.logger import logger
 from database import get_db
+from database.db.session import get_db_context
 from rabbit_service.custom_consumer import RabbitCarfaxConsumer, CarfaxRoutingKey
 from routers import carfax_router
 from routers.health import health
@@ -22,7 +23,7 @@ def create_app() -> FastAPI:
     async def lifespan(_: FastAPI):
         logger.info(f"{settings.APP_NAME} started!")
         connection = await connect_robust(settings.RABBITMQ_URL)
-        async with get_db() as db:
+        async with get_db_context() as db:
             consumer = RabbitCarfaxConsumer(connection, db, [member.value for member in CarfaxRoutingKey])
             await consumer.set_up()
             await consumer.start_consuming()
