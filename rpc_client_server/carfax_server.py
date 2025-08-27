@@ -34,24 +34,24 @@ class CarfaxRpc(carfax_pb2_grpc.CarfaxServiceServicer):
                 context.set_details('VIN not found')
                 return carfax_pb2.BuyCarfaxResponse()
 
-            db = await get_db()
-            carfax_service = CarfaxPurchasesService(db)
+            async with get_db() as db:
+                carfax_service = CarfaxPurchasesService(db)
 
-            carfax, link = await carfax_service.create_purchase_with_checkout(
-                user_external_id=request.user_external_id,
-                source=request.source,
-                vin=request.vin,
-                success_link=request.success_url,
-                cancel_link=request.cancel_url
-            )
+                carfax, link = await carfax_service.create_purchase_with_checkout(
+                    user_external_id=request.user_external_id,
+                    source=request.source,
+                    vin=request.vin,
+                    success_link=request.success_url,
+                    cancel_link=request.cancel_url
+                )
 
-            logger.info(
-                "Carfax purchase request completed",
-                extra={'carfax_id': carfax.id, 'vin': request.vin}
-            )
+                logger.info(
+                    "Carfax purchase request completed",
+                    extra={'carfax_id': carfax.id, 'vin': request.vin}
+                )
 
-            carfax = carfax_pb2.Carfax(**CarfaxPurchaseReadWithoutId.model_validate(carfax).model_dump(mode="json", exclude_none=True))
-            return carfax_pb2.BuyCarfaxResponse(carfax=carfax, link=link)
+                carfax = carfax_pb2.Carfax(**CarfaxPurchaseReadWithoutId.model_validate(carfax).model_dump(mode="json", exclude_none=True))
+                return carfax_pb2.BuyCarfaxResponse(carfax=carfax, link=link)
 
         except Exception as e:
             print(traceback.format_exc())
@@ -66,13 +66,13 @@ class CarfaxRpc(carfax_pb2_grpc.CarfaxServiceServicer):
 
     async def GetAllCarfaxesForUser(self, request: carfax_pb2.GetAllCarfaxesForUserRequest, context):
         try:
-            db = await get_db()
-            carfax_service = CarfaxPurchasesService(db)
-            carfaxes = await carfax_service.get_all_for_user(request.user_external_id, request.source)
+            async with get_db() as db:
+                carfax_service = CarfaxPurchasesService(db)
+                carfaxes = await carfax_service.get_all_for_user(request.user_external_id, request.source)
 
-            rpc_carfaxes = [carfax_pb2.Carfax(**CarfaxPurchaseReadWithoutId.model_validate(carfax).
-                                              model_dump(mode='json', exclude_none=True)) for carfax in carfaxes]
-            return carfax_pb2.GetAllCarfaxesForUserResponse(carfaxes=rpc_carfaxes)
+                rpc_carfaxes = [carfax_pb2.Carfax(**CarfaxPurchaseReadWithoutId.model_validate(carfax).
+                                                  model_dump(mode='json', exclude_none=True)) for carfax in carfaxes]
+                return carfax_pb2.GetAllCarfaxesForUserResponse(carfaxes=rpc_carfaxes)
         except Exception as e:
             logger.error(
                 "Error while retrieving carfaxes for user",
@@ -85,23 +85,23 @@ class CarfaxRpc(carfax_pb2_grpc.CarfaxServiceServicer):
 
     async def GetCarfaxByVin(self, request: carfax_pb2.GetCarfaxByVinRequest, context):
         try:
-            db = await get_db()
-            vin = request.vin.upper()
+            async with get_db() as db:
+                vin = request.vin.upper()
 
-            service = CarfaxPurchasesService(db)
-            carfax = await service.get_carfax_with_link(
-                user_external_id=request.user_external_id,
-                source=request.source,
-                vin=vin
-            )
-            if not carfax:
-                context.set_code(grpc.StatusCode.NOT_FOUND)
-                context.set_details('VIN not found')
-                return carfax_pb2.GetCarfaxByVinResponse()
-            carfax = CarfaxPurchaseReadWithoutId.model_validate(carfax).model_dump(mode="json", exclude_none=True)
-            rcp_carfax = carfax_pb2.Carfax(**carfax)
+                service = CarfaxPurchasesService(db)
+                carfax = await service.get_carfax_with_link(
+                    user_external_id=request.user_external_id,
+                    source=request.source,
+                    vin=vin
+                )
+                if not carfax:
+                    context.set_code(grpc.StatusCode.NOT_FOUND)
+                    context.set_details('VIN not found')
+                    return carfax_pb2.GetCarfaxByVinResponse()
+                carfax = CarfaxPurchaseReadWithoutId.model_validate(carfax).model_dump(mode="json", exclude_none=True)
+                rcp_carfax = carfax_pb2.Carfax(**carfax)
 
-            return carfax_pb2.GetCarfaxByVinResponse(carfax=rcp_carfax)
+                return carfax_pb2.GetCarfaxByVinResponse(carfax=rcp_carfax)
         except Exception as e:
 
             logger.error(
