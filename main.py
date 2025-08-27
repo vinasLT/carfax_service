@@ -22,11 +22,10 @@ def create_app() -> FastAPI:
     async def lifespan(_: FastAPI):
         logger.info(f"{settings.APP_NAME} started!")
         connection = await connect_robust(settings.RABBITMQ_URL)
-        db = await get_db()
-
-        consumer = RabbitCarfaxConsumer(connection, db, [member.value for member in CarfaxRoutingKey])
-        await consumer.set_up()
-        await consumer.start_consuming()
+        async with get_db() as db:
+            consumer = RabbitCarfaxConsumer(connection, db, [member.value for member in CarfaxRoutingKey])
+            await consumer.set_up()
+            await consumer.start_consuming()
         yield
 
         await consumer.stop_consuming()
