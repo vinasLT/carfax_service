@@ -50,5 +50,7 @@ async def get_checkout_link(purpose_external_id: str, success_link: str, cancel_
             purpose, purpose_external_id, success_link, cancel_link, user_external_id, source
         )
         return response.link
+    except grpc.aio.AioRpcError as e:
+        logger.error(f"Error while creating checkout link: {e}")
     finally:
         await stripe_client.disconnect()
