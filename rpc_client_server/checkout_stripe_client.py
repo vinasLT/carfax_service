@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Any, Coroutine
 
 import grpc
 
@@ -42,7 +43,15 @@ class StripeClient:
 
 
 async def get_checkout_link(purpose_external_id: str, success_link: str, cancel_link: str,
-                           user_external_id: str, source: str, purpose: str = 'CARFAX') -> str:
+                           user_external_id: str, source: str, purpose: str = 'CARFAX') -> str | None:
+    logger.info("Creating checkout link", extra={
+        "purpose_external_id": purpose_external_id,
+        "success_link": success_link,
+        "cancel_link": cancel_link,
+        "user_external_id": user_external_id,
+        "source": source,
+        "purpose": purpose,
+    })
     stripe_client = StripeClient()
     await stripe_client.connect()
     try:
