@@ -86,7 +86,8 @@ class StripeClient:
         except grpc.aio.AioRpcError as e:
             logger.error("gRPC error while creating checkout link", extra={
                 'error': str(e),
-                'grpc_code': e.code(),
+                'grpc_code': e.code().name,
+                'grpc_code_value': e.code().value[0],
                 'grpc_details': e.details(),
                 'purpose_external_id': purpose_external_id,
                 'user_external_id': user_external_id
@@ -146,6 +147,7 @@ async def get_checkout_link(purpose_external_id: str, success_link: str, cancel_
             "request_id": request_id,
             "error": str(e),
             "grpc_code": e.code().name,
+            "grpc_code_value": e.code().value[0],
             "grpc_details": e.details(),
             "purpose_external_id": purpose_external_id,
             "user_external_id": user_external_id
