@@ -1,12 +1,14 @@
 from AuthTools import HeaderUser
-from fastapi import APIRouter, Body, Depends, Query
+from fastapi import APIRouter, Body, Depends
 from rfc9457 import BadRequestProblem, NotFoundProblem, ServerProblem
 from sqlalchemy.ext.asyncio import AsyncSession
 from AuthTools.Permissions.dependencies import require_permissions
+from fastapi_pagination.ext.sqlalchemy import paginate
 
 from api.carfax_api import CarfaxAPIClient
 from config import Permissions
 from core.logger import logger
+from core.utils import create_pagination_page
 from database import get_db
 from database.crud.carfax_purchases import CarfaxPurchasesService
 from database.schemas.carfax_purchases import CarfaxPurchaseRead
@@ -17,6 +19,7 @@ from schemas.carfax_with_checkout import CarfaxWithCheckoutOut
 carfax_router = APIRouter()
 
 DEFAULT_SOURCE = 'web'
+CarfaxPurchasePage = create_pagination_page(CarfaxPurchaseRead)
 
 
 @carfax_router.post("/carfax/buy-carfax", response_model=CarfaxWithCheckoutOut,
@@ -48,7 +51,7 @@ async def buy_carfax_request(
         service = CarfaxPurchasesService(db)
         carfax, link = await service.create_purchase_with_checkout(
             user_external_id=user.uuid,
-            source=data.source,
+            source=DEFAULT_SOURCE,
             vin=data.vin
         )
 
@@ -71,7 +74,7 @@ async def buy_carfax_request(
 
 @carfax_router.get(
     "/carfax/my",
-    response_model=list[CarfaxPurchaseRead],
+    response_model=CarfaxPurchasePage,
     summary='Get all user carfaxes',
     description=f"Get all user carfaxes\nrequired permissions: {Permissions.CARFAX_OWN_READ.value}"
 )
@@ -83,10 +86,8 @@ async def get_carfaxes(
 
     try:
         service = CarfaxPurchasesService(db)
-        carfaxes = await service.get_all_for_user(user.uuid, DEFAULT_SOURCE)
-
-        logger.info("Retrieved carfaxes", extra={'count': len(carfaxes)})
-        return carfaxes
+        stmt = service.get_all_for_user_stmt(user.uuid, DEFAULT_SOURCE)
+        return await paginate(db, stmt)
 
     except Exception as e:
         logger.error(

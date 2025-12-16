@@ -3,11 +3,11 @@ from contextlib import asynccontextmanager
 import uvicorn
 from aio_pika import connect_robust
 from fastapi import FastAPI
+from fastapi_pagination import add_pagination
 from fastapi_problem.handler import new_exception_handler, add_exception_handler
 
 from config import settings
 from core.logger import logger
-from database import get_db
 from database.db.session import get_db_context
 from rabbit_service.custom_consumer import RabbitCarfaxConsumer, CarfaxRoutingKey
 from routers import carfax_router
@@ -43,6 +43,7 @@ def create_app() -> FastAPI:
 
     eh = new_exception_handler()
     add_exception_handler(app, eh)
+    add_pagination(app)
 
 
     app.include_router(carfax_router, prefix="/private/v1")

@@ -101,12 +101,13 @@ class CarfaxPurchasesService(BaseService[CarfaxPurchase, CarfaxPurchaseCreate, C
         result = await self.session.execute(query)
         return result.scalars().first()
 
-    async def get_all_for_user(self, external_user_id: str, source: str) -> list[CarfaxPurchaseRead]:
-        query = select(CarfaxPurchase).where(
+    def get_all_for_user_stmt(self, external_user_id: str, source: str):
+        return select(CarfaxPurchase).where(
             CarfaxPurchase.user_external_id == external_user_id,
             CarfaxPurchase.source == source,
         ).order_by(desc(CarfaxPurchase.created_at))
-        result = await self.session.execute(query)
+
+    async def get_all_for_user(self, external_user_id: str, source: str) -> list[CarfaxPurchaseRead]:
+        result = await self.session.execute(self.get_all_for_user_stmt(external_user_id, source))
         purchases = result.scalars().all()
         return [CarfaxPurchaseRead.model_validate(p) for p in purchases]
-
