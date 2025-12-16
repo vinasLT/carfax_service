@@ -16,12 +16,14 @@ from schemas.carfax_with_checkout import CarfaxWithCheckoutOut
 
 carfax_router = APIRouter()
 
+DEFAULT_SOURCE = 'web'
+
 
 @carfax_router.post("/carfax/buy-carfax", response_model=CarfaxWithCheckoutOut,
                     summary='Buy new carfax', description="Create buy carfax obj and get checkout link\n"
-                                                          f"required permissions: {Permissions.CARFAX_WRITE.value}")
+                                                          f"required permissions: {Permissions.CARFAX_OWN_WRITE.value}")
 async def buy_carfax_request(
-        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_WRITE)),
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN_WRITE)),
         data: CarfaxPurchaseIn = Body(...),
         db: AsyncSession = Depends(get_db),
         api: CarfaxAPIClient = Depends(get_carfax_client),
@@ -68,21 +70,20 @@ async def buy_carfax_request(
 
 
 @carfax_router.get(
-    "/carfax",
+    "/carfax/my",
     response_model=list[CarfaxPurchaseRead],
     summary='Get all user carfaxes',
-    description=f"Get all user carfaxes\nrequired permissions: {Permissions.CARFAX_OWN.value}"
+    description=f"Get all user carfaxes\nrequired permissions: {Permissions.CARFAX_OWN_READ.value}"
 )
 async def get_carfaxes(
-        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN)),
-        source: str = Query('web', description='Source, for example: web, bot etc, default: web'),
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN_READ)),
         db: AsyncSession = Depends(get_db)
 ):
     logger.info("Getting carfaxes for user", extra={'user_external_id': user.uuid})
 
     try:
         service = CarfaxPurchasesService(db)
-        carfaxes = await service.get_all_for_user(user.uuid, source)
+        carfaxes = await service.get_all_for_user(user.uuid, DEFAULT_SOURCE)
 
         logger.info("Retrieved carfaxes", extra={'count': len(carfaxes)})
         return carfaxes
@@ -97,14 +98,13 @@ async def get_carfaxes(
 
 
 @carfax_router.get(
-    "/carfax/{vin}/",
+    "/carfax/{vin}",
     response_model=CarfaxPurchaseRead,
-    description=f"Get carfax by VIN for user\nrequired permissions: {Permissions.CARFAX_OWN.value}"
+    description=f"Get carfax by VIN for user\nrequired permissions: {Permissions.CARFAX_OWN_READ.value}"
 )
 async def get_carfax_by_vin(
         vin: str,
-        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN)),
-        source: str = Query('web', description='Source, for example: web, bot etc, default: web'),
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN_READ)),
         db: AsyncSession = Depends(get_db),
 ) -> CarfaxPurchaseRead:
     logger.info(
@@ -112,7 +112,6 @@ async def get_carfax_by_vin(
         extra={
             'vin': vin,
             'user_external_id': user.uuid,
-            'source': source,
             'endpoint': 'get_carfax_by_vin'
         }
     )
@@ -121,7 +120,7 @@ async def get_carfax_by_vin(
         service = CarfaxPurchasesService(db)
         carfax = await service.get_carfax_with_link(
             user_external_id=user.uuid,
-            source=source,
+            source=DEFAULT_SOURCE,
             vin=vin
         )
 
@@ -133,7 +132,6 @@ async def get_carfax_by_vin(
             extra={
                 'vin': vin,
                 'user_external_id': user.uuid,
-                'source': source,
                 'error': str(e),
                 'error_type': type(e).__name__
             },

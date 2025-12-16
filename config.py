@@ -6,8 +6,8 @@ from pydantic_settings import BaseSettings
 load_dotenv()
 
 class Permissions(str, Enum):
-    CARFAX_OWN = "carfax.own:read"
-    CARFAX_WRITE = "carfax.own:write"
+    CARFAX_OWN_READ = "carfax.own:read"
+    CARFAX_OWN_WRITE = "carfax.own:write"
 
 class Environment(str, Enum):
     DEVELOPMENT = "development"
