@@ -1,30 +1,34 @@
+from AuthTools import HeaderUser
 from fastapi import APIRouter, Body, Depends, Query
 from rfc9457 import BadRequestProblem, NotFoundProblem, ServerProblem
 from sqlalchemy.ext.asyncio import AsyncSession
+from AuthTools.Permissions.dependencies import require_permissions
 
 from api.carfax_api import CarfaxAPIClient
+from config import Permissions
 from core.logger import logger
 from database import get_db
 from database.crud.carfax_purchases import CarfaxPurchasesService
 from database.schemas.carfax_purchases import CarfaxPurchaseRead
 from dependencies.carfax_client import get_carfax_client
-from dependencies.get_user import User, get_user
 from schemas.carfax_purchase import CarfaxPurchaseIn
 from schemas.carfax_with_checkout import CarfaxWithCheckoutOut
 
 carfax_router = APIRouter()
 
 
-@carfax_router.post("/carfax/buy-carfax", response_model=CarfaxWithCheckoutOut, summary='Buy new carfax', description="Create buy carfax obj and get checkout link")
+@carfax_router.post("/carfax/buy-carfax", response_model=CarfaxWithCheckoutOut,
+                    summary='Buy new carfax', description="Create buy carfax obj and get checkout link\n"
+                                                          f"required permissions: {Permissions.CARFAX_WRITE.value}")
 async def buy_carfax_request(
-        user: User = Depends(get_user),
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_WRITE)),
         data: CarfaxPurchaseIn = Body(...),
         db: AsyncSession = Depends(get_db),
         api: CarfaxAPIClient = Depends(get_carfax_client),
 ) -> CarfaxWithCheckoutOut:
     logger.info(
         "Starting carfax purchase request",
-        extra={'vin': data.vin, 'user_external_id': user.id}
+        extra={'vin': data.vin, 'user_external_id': user.uuid}
     )
 
     try:
@@ -41,7 +45,7 @@ async def buy_carfax_request(
 
         service = CarfaxPurchasesService(db)
         carfax, link = await service.create_purchase_with_checkout(
-            user_external_id=user.id,
+            user_external_id=user.uuid,
             source=data.source,
             vin=data.vin
         )
@@ -63,17 +67,22 @@ async def buy_carfax_request(
         raise
 
 
-@carfax_router.get("/carfax", response_model=list[CarfaxPurchaseRead], summary='Get all user carfaxes')
+@carfax_router.get(
+    "/carfax",
+    response_model=list[CarfaxPurchaseRead],
+    summary='Get all user carfaxes',
+    description=f"Get all user carfaxes\nrequired permissions: {Permissions.CARFAX_OWN.value}"
+)
 async def get_carfaxes(
-        user: User = Depends(get_user),
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN)),
         source: str = Query('web', description='Source, for example: web, bot etc, default: web'),
         db: AsyncSession = Depends(get_db)
 ):
-    logger.info("Getting carfaxes for user", extra={'user_external_id': user.id})
+    logger.info("Getting carfaxes for user", extra={'user_external_id': user.uuid})
 
     try:
         service = CarfaxPurchasesService(db)
-        carfaxes = await service.get_all_for_user(user.id, source)
+        carfaxes = await service.get_all_for_user(user.uuid, source)
 
         logger.info("Retrieved carfaxes", extra={'count': len(carfaxes)})
         return carfaxes
@@ -81,16 +90,20 @@ async def get_carfaxes(
     except Exception as e:
         logger.error(
             "Error getting carfaxes",
-            extra={'user_external_id': user.id, 'error': str(e)},
+            extra={'user_external_id': user.uuid, 'error': str(e)},
             exc_info=True
         )
         raise
 
 
-@carfax_router.get("/carfax/{vin}/", response_model=CarfaxPurchaseRead, description="Get carfax by VIN for user")
+@carfax_router.get(
+    "/carfax/{vin}/",
+    response_model=CarfaxPurchaseRead,
+    description=f"Get carfax by VIN for user\nrequired permissions: {Permissions.CARFAX_OWN.value}"
+)
 async def get_carfax_by_vin(
         vin: str,
-        user: User = Depends(get_user),
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN)),
         source: str = Query('web', description='Source, for example: web, bot etc, default: web'),
         db: AsyncSession = Depends(get_db),
 ) -> CarfaxPurchaseRead:
@@ -98,7 +111,7 @@ async def get_carfax_by_vin(
         "Getting carfax by VIN",
         extra={
             'vin': vin,
-            'user_external_id': user.id,
+            'user_external_id': user.uuid,
             'source': source,
             'endpoint': 'get_carfax_by_vin'
         }
@@ -107,7 +120,7 @@ async def get_carfax_by_vin(
     try:
         service = CarfaxPurchasesService(db)
         carfax = await service.get_carfax_with_link(
-            user_external_id=user.id,
+            user_external_id=user.uuid,
             source=source,
             vin=vin
         )
@@ -119,7 +132,7 @@ async def get_carfax_by_vin(
             "Error getting carfax by VIN",
             extra={
                 'vin': vin,
-                'user_external_id': user.id,
+                'user_external_id': user.uuid,
                 'source': source,
                 'error': str(e),
                 'error_type': type(e).__name__
