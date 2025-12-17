@@ -13,6 +13,7 @@ from database import get_db
 from database.crud.carfax_purchases import CarfaxPurchasesService
 from database.schemas.carfax_purchases import CarfaxPurchaseRead
 from dependencies.carfax_client import get_carfax_client
+from rpc_client_server.auction_api import ApiRpcClient
 from schemas.carfax_purchase import CarfaxPurchaseIn
 from schemas.carfax_with_checkout import CarfaxWithCheckoutOut
 
@@ -47,12 +48,29 @@ async def buy_carfax_request(
             logger.warning("VIN not found", extra={'vin': data.vin})
             raise NotFoundProblem(detail='VIN not found')
 
+        auction: str | None = None
+        lot_id: str | None = None
+        try:
+            async with ApiRpcClient() as auction_client:
+                lot_response = await auction_client.get_lot_by_vin_or_lot_id(data.vin)
+            if lot_response.lot:
+                lot = next((l for l in lot_response.lot if getattr(l, "base_site", None)), lot_response.lot[0])
+                auction = lot.base_site or str(lot.site)
+                lot_id = str(lot.lot_id) if lot.lot_id else None
+        except Exception as e:
+            logger.warning(
+                "Failed to fetch lot data for VIN",
+                extra={'vin': data.vin, 'error': str(e)},
+                exc_info=True,
+            )
 
         service = CarfaxPurchasesService(db)
         carfax, link = await service.create_purchase_with_checkout(
             user_external_id=user.uuid,
             source=DEFAULT_SOURCE,
-            vin=data.vin
+            vin=data.vin,
+            auction=auction,
+            lot_id=lot_id,
         )
 
         logger.info(

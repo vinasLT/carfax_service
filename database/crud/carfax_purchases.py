@@ -23,14 +23,32 @@ class CarfaxPurchasesService(BaseService[CarfaxPurchase, CarfaxPurchaseCreate, C
         result = await self.session.execute(query)
         return result.scalars().first()
 
-    async def get_vin_for_user_or_create(self, external_user_id: str, source: str, vin: str)-> CarfaxPurchase:
+    async def get_vin_for_user_or_create(
+        self,
+        external_user_id: str,
+        source: str,
+        vin: str,
+        auction: str | None = None,
+        lot_id: str | None = None,
+    ) -> CarfaxPurchase:
         carfax = await self.get_vin_for_user(external_user_id, source, vin)
         if not carfax:
             carfax = await self.create(CarfaxPurchaseCreate(
                 user_external_id=external_user_id,
                 source=source,
-                vin=vin.upper()
+                vin=vin.upper(),
+                auction=auction,
+                lot_id=lot_id,
             ))
+            return carfax
+
+        update_data = {}
+        if auction is not None and not carfax.auction:
+            update_data["auction"] = auction
+        if lot_id is not None and not carfax.lot_id:
+            update_data["lot_id"] = lot_id
+        if update_data:
+            carfax = await self.update(carfax.id, CarfaxPurchaseUpdate(**update_data))
         return carfax
 
     async def create_purchase_with_checkout(
@@ -38,13 +56,17 @@ class CarfaxPurchasesService(BaseService[CarfaxPurchase, CarfaxPurchaseCreate, C
             user_external_id: str,
             source: str,
             vin: str,
+            auction: str | None = None,
+            lot_id: str | None = None,
             success_link: str = settings.SUCCESS_PAYMENT_URL,
             cancel_link: str = settings.COMPANY_LINK,
     ) -> tuple[CarfaxPurchase, str]:
         carfax = await self.get_vin_for_user_or_create(
             external_user_id=user_external_id,
             source=source,
-            vin=vin
+            vin=vin,
+            auction=auction,
+            lot_id=lot_id,
         )
         link = await get_checkout_link(
             purpose_external_id=str(carfax.id),
