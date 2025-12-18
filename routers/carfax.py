@@ -1,81 +1,159 @@
-from fastapi import APIRouter, Body, Depends, Query, HTTPException
+from AuthTools import HeaderUser
+from fastapi import APIRouter, Body, Depends
+from rfc9457 import BadRequestProblem, NotFoundProblem, ServerProblem
 from sqlalchemy.ext.asyncio import AsyncSession
+from AuthTools.Permissions.dependencies import require_permissions
+from fastapi_pagination.ext.sqlalchemy import paginate
 
 from api.carfax_api import CarfaxAPIClient
+from config import Permissions
+from core.logger import logger
+from core.utils import create_pagination_page
 from database import get_db
 from database.crud.carfax_purchases import CarfaxPurchasesService
-from database.schemas.carfax_purchases import CarfaxPurchaseRead, CarfaxPurchaseCreate, CarfaxPurchaseUpdate
-from exeptions import BadRequestException
-from schemas import CarfaxPurchaseIn
+from database.schemas.carfax_purchases import CarfaxPurchaseRead
+from dependencies.carfax_client import get_carfax_client
+from rpc_client_server.auction_api import ApiRpcClient
+from schemas.carfax_purchase import CarfaxPurchaseIn
+from schemas.carfax_with_checkout import CarfaxWithCheckoutOut
 
 carfax_router = APIRouter()
 
+DEFAULT_SOURCE = 'web'
+CarfaxPurchasePage = create_pagination_page(CarfaxPurchaseRead)
 
 
-@carfax_router.post("/carfax/buy-carfax", response_model=CarfaxPurchaseRead)
+@carfax_router.post("/carfax/buy-carfax", response_model=CarfaxWithCheckoutOut,
+                    summary='Buy new carfax', description="Create buy carfax obj and get checkout link\n"
+                                                          f"required permissions: {Permissions.CARFAX_OWN_WRITE.value}")
 async def buy_carfax_request(
-    data: CarfaxPurchaseIn = Body(...),
-    db: AsyncSession = Depends(get_db),
-    api: CarfaxAPIClient = Depends(),
-)-> CarfaxPurchaseRead:
-    response = await api.check_balance()
-    print(response)
-    if response.balance <= 1:
-        raise BadRequestException(message='No carfaxes left, admin need to top up his account',
-                                  short_message='top_up_needed')
-
-    service = CarfaxPurchasesService(db)
-    carfax = await service.get_vin_for_user(external_user_id=data.user_external_id,
-                                            source=data.source, vin=data.vin)
-    print(carfax)
-    if not carfax:
-        carfax = await service.create(CarfaxPurchaseCreate(user_external_id=data.user_external_id,
-                                                  source=data.source,
-                                                  vin=data.vin.upper()))
-    return CarfaxPurchaseRead.model_validate(carfax).model_dump()
-
-@carfax_router.post('/internal/carfax/webhook/{carfax_id}/paid', response_model=CarfaxPurchaseRead)
-async def carfax_paid(carfax_id: int, db: AsyncSession = Depends(get_db), api: CarfaxAPIClient = Depends()) -> CarfaxPurchaseRead:
-    service = CarfaxPurchasesService(db)
-    carfax = await service.get(carfax_id)
-    link = carfax.link
-    if not link:
-        existing = await service.get_by_vin(vin=carfax.vin)
-        if existing:
-            link = existing.link
-        else:
-            carfax_api = await api.get_carfax(carfax.vin)
-            link = str(carfax_api.file)
-    await service.update(carfax.id, CarfaxPurchaseUpdate(link=link, is_paid=True))
-    updated = await service.get(carfax.id)
-    return CarfaxPurchaseRead.model_validate(updated)
-
-@carfax_router.get("/carfax", response_model=list[CarfaxPurchaseRead])
-async def get_carfaxes(user_external_id: str = Query(...),
-                     source: str = Query(...), db: AsyncSession = Depends(get_db)):
-    service = CarfaxPurchasesService(db)
-    return await service.get_all_for_user(user_external_id, source)
-
-@carfax_router.get("/carfax/{vin}/", response_model=CarfaxPurchaseRead)
-async def get_carfax_by_vin(vin:str, user_external_id: str = Query(...), source: str = Query(...),
-                            db: AsyncSession = Depends(get_db),
-                            api:CarfaxAPIClient = Depends())-> CarfaxPurchaseRead:
-    service = CarfaxPurchasesService(db)
-    carfax = await service.get_vin_for_user(
-        external_user_id=user_external_id, source=source, vin=vin
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN_WRITE)),
+        data: CarfaxPurchaseIn = Body(...),
+        db: AsyncSession = Depends(get_db),
+        api: CarfaxAPIClient = Depends(get_carfax_client),
+) -> CarfaxWithCheckoutOut:
+    logger.info(
+        "Starting carfax purchase request",
+        extra={'vin': data.vin, 'user_external_id': user.uuid}
     )
-    if not carfax:
-        raise HTTPException(status_code=404, detail="Carfax not found")
 
-    if carfax.is_paid and not carfax.link:
-        already_in_db = await service.get_by_vin(vin=carfax.vin)
-        if already_in_db and already_in_db.link:
-            carfax = await service.update(
-                carfax.id, CarfaxPurchaseUpdate(link=already_in_db.link)
+    try:
+        response = await api.check_balance()
+        if response.balance <= 1:
+            logger.error("Insufficient carfax balance", extra={'balance': response.balance})
+            raise BadRequestProblem(detail='No carfaxes left, admin need to top up his account')
+
+        is_exist = await api.check_if_vin_exists(vin=data.vin)
+        if not is_exist:
+            logger.warning("VIN not found", extra={'vin': data.vin})
+            raise NotFoundProblem(detail='VIN not found')
+
+        auction: str | None = None
+        lot_id: str | None = None
+        try:
+            async with ApiRpcClient() as auction_client:
+                lot_response = await auction_client.get_lot_by_vin_or_lot_id(data.vin)
+            if lot_response.lot:
+                lot = next((l for l in lot_response.lot if getattr(l, "base_site", None)), lot_response.lot[0])
+                auction = lot.base_site or str(lot.site)
+                lot_id = str(lot.lot_id) if lot.lot_id else None
+        except Exception as e:
+            logger.warning(
+                "Failed to fetch lot data for VIN",
+                extra={'vin': data.vin, 'error': str(e)},
+                exc_info=True,
             )
-        else:
-            carfax_api = await api.get_carfax(carfax.vin)
-            carfax = await service.update(
-                carfax.id, CarfaxPurchaseUpdate(link=str(carfax_api.file))
-            )
-    return CarfaxPurchaseRead.model_validate(carfax).model_dump()
+
+        service = CarfaxPurchasesService(db)
+        carfax, link = await service.create_purchase_with_checkout(
+            user_external_id=user.uuid,
+            source=DEFAULT_SOURCE,
+            vin=data.vin,
+            auction=auction,
+            lot_id=lot_id,
+        )
+
+        logger.info(
+            "Carfax purchase request completed",
+            extra={'carfax_id': carfax.id, 'vin': data.vin}
+        )
+
+        carfax = CarfaxPurchaseRead.model_validate(carfax)
+        return CarfaxWithCheckoutOut(carfax=carfax, checkout_link=link)
+
+    except Exception as e:
+        logger.error(
+            "Error in carfax purchase",
+            extra={'vin': data.vin, 'error': str(e)},
+            exc_info=True
+        )
+        raise
+
+
+@carfax_router.get(
+    "/carfax/my",
+    response_model=CarfaxPurchasePage,
+    summary='Get all user carfaxes',
+    description=f"Get all user carfaxes\nrequired permissions: {Permissions.CARFAX_OWN_READ.value}"
+)
+async def get_carfaxes(
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN_READ)),
+        db: AsyncSession = Depends(get_db)
+):
+    logger.info("Getting carfaxes for user", extra={'user_external_id': user.uuid})
+
+    try:
+        service = CarfaxPurchasesService(db)
+        stmt = service.get_all_for_user_stmt(user.uuid, DEFAULT_SOURCE)
+        return await paginate(db, stmt)
+
+    except Exception as e:
+        logger.error(
+            "Error getting carfaxes",
+            extra={'user_external_id': user.uuid, 'error': str(e)},
+            exc_info=True
+        )
+        raise
+
+
+@carfax_router.get(
+    "/carfax/{vin}",
+    response_model=CarfaxPurchaseRead,
+    description=f"Get carfax by VIN for user\nrequired permissions: {Permissions.CARFAX_OWN_READ.value}"
+)
+async def get_carfax_by_vin(
+        vin: str,
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_OWN_READ)),
+        db: AsyncSession = Depends(get_db),
+) -> CarfaxPurchaseRead:
+    logger.info(
+        "Getting carfax by VIN",
+        extra={
+            'vin': vin,
+            'user_external_id': user.uuid,
+            'endpoint': 'get_carfax_by_vin'
+        }
+    )
+
+    try:
+        service = CarfaxPurchasesService(db)
+        carfax = await service.get_carfax_with_link(
+            user_external_id=user.uuid,
+            source=DEFAULT_SOURCE,
+            vin=vin
+        )
+
+        return CarfaxPurchaseRead.model_validate(carfax).model_dump()
+
+    except Exception as e:
+        logger.error(
+            "Error getting carfax by VIN",
+            extra={
+                'vin': vin,
+                'user_external_id': user.uuid,
+                'error': str(e),
+                'error_type': type(e).__name__
+            },
+            exc_info=True
+        )
+        raise ServerProblem(detail='Internal server error') from e
