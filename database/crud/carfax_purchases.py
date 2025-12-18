@@ -1,4 +1,6 @@
-from sqlalchemy import select, desc
+from typing import Any
+
+from sqlalchemy import select, desc, Select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.carfax_api import CarfaxAPIClient
@@ -123,11 +125,15 @@ class CarfaxPurchasesService(BaseService[CarfaxPurchase, CarfaxPurchaseCreate, C
         result = await self.session.execute(query)
         return result.scalars().first()
 
-    def get_all_for_user_stmt(self, external_user_id: str, source: str):
-        return select(CarfaxPurchase).where(
+    def get_all_for_user_stmt(self, external_user_id: str, source: str, only_paid: bool = True)-> Select[tuple[CarfaxPurchase]]:
+        stmt = select(CarfaxPurchase).where(
             CarfaxPurchase.user_external_id == external_user_id,
             CarfaxPurchase.source == source,
         ).order_by(desc(CarfaxPurchase.created_at))
+        if only_paid:
+            stmt = stmt.where(CarfaxPurchase.is_paid == True)
+        return stmt
+
 
     async def get_all_for_user(self, external_user_id: str, source: str) -> list[CarfaxPurchaseRead]:
         result = await self.session.execute(self.get_all_for_user_stmt(external_user_id, source))
