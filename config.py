@@ -9,6 +9,8 @@ class Permissions(str, Enum):
     CARFAX_OWN_READ = "carfax.own:read"
     CARFAX_OWN_WRITE = "carfax.own:write"
 
+    CARFAX_ALL_READ = "carfax.all:read"
+
 class Environment(str, Enum):
     DEVELOPMENT = "development"
     PRODUCTION = "production"

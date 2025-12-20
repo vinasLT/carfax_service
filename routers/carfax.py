@@ -1,5 +1,5 @@
 from AuthTools import HeaderUser
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, Query
 from rfc9457 import BadRequestProblem, NotFoundProblem, ServerProblem
 from sqlalchemy.ext.asyncio import AsyncSession
 from AuthTools.Permissions.dependencies import require_permissions
@@ -111,6 +111,40 @@ async def get_carfaxes(
         logger.error(
             "Error getting carfaxes",
             extra={'user_external_id': user.uuid, 'error': str(e)},
+            exc_info=True
+        )
+        raise
+
+
+@carfax_router.get(
+    "/carfax/for-user",
+    response_model=CarfaxPurchasePage,
+    summary='Get all carfaxes for user',
+    description=f"Get all carfaxes for user\nrequired permissions: {Permissions.CARFAX_ALL_READ.value}"
+)
+async def get_carfaxes_for_user(
+        user_uuid: str = Query(...),
+        user: HeaderUser = Depends(require_permissions(Permissions.CARFAX_ALL_READ)),
+        db: AsyncSession = Depends(get_db)
+):
+    logger.info(
+        "Getting carfaxes for user",
+        extra={'user_external_id': user_uuid, 'requested_by': user.uuid}
+    )
+
+    try:
+        service = CarfaxPurchasesService(db)
+        stmt = service.get_all_for_user_stmt(user_uuid, DEFAULT_SOURCE)
+        return await paginate(db, stmt)
+
+    except Exception as e:
+        logger.error(
+            "Error getting carfaxes for user",
+            extra={
+                'user_external_id': user_uuid,
+                'requested_by': user.uuid,
+                'error': str(e)
+            },
             exc_info=True
         )
         raise
